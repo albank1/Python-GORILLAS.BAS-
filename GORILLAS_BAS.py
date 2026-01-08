@@ -137,6 +137,7 @@ SCREEN_WIDTH = 640
 SCREEN_HEIGHT = 350
 SCALE = 2  # Window scaling for modern displays
 FPS = 60
+CITY_BOTTOM = 15
 
 # EGA 16-color palette
 EGA_PALETTE = [
@@ -647,7 +648,7 @@ class QBasicGorillas:
             
             color = random.choice([4, 5, 6, 7])
             
-            bottom = SCREEN_HEIGHT - 5
+            bottom = SCREEN_HEIGHT - CITY_BOTTOM
             top = bottom - height
             windows = []
             wx = x + 3
@@ -683,7 +684,7 @@ class QBasicGorillas:
     def draw_buildings(self):
         #Draw all buildings with windows
         for bldg in self.buildings:
-            bottom = SCREEN_HEIGHT - 5
+            bottom = SCREEN_HEIGHT - CITY_BOTTOM
             top = bottom - bldg['height']
             
             # Draw building
@@ -704,7 +705,7 @@ class QBasicGorillas:
         self.city_surf = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
 
         for bldg in self.buildings:
-            bottom = SCREEN_HEIGHT - 5
+            bottom = SCREEN_HEIGHT - CITY_BOTTOM
             top = bottom - bldg['height']
 
             # Building body (opaque)
@@ -785,13 +786,13 @@ class QBasicGorillas:
         left_idx = random.randint(1, 2)
         left_bldg = self.buildings[left_idx]
         self.gorilla_x[0] = left_bldg['x'] + left_bldg['width'] // 2 - 15
-        self.gorilla_y[0] = SCREEN_HEIGHT - 5 - left_bldg['height'] - 30
+        self.gorilla_y[0] = SCREEN_HEIGHT - CITY_BOTTOM - left_bldg['height'] - 30
         
         # Right gorilla on 2nd or 3rd from end
         right_idx = len(self.buildings) - random.randint(2, 3)
         right_bldg = self.buildings[right_idx]
         self.gorilla_x[1] = right_bldg['x'] + right_bldg['width'] // 2 - 15
-        self.gorilla_y[1] = SCREEN_HEIGHT - 5 - right_bldg['height'] - 30
+        self.gorilla_y[1] = SCREEN_HEIGHT - CITY_BOTTOM - right_bldg['height'] - 30
     
     def draw_scene(self):
         #Draw complete game scene
@@ -923,80 +924,103 @@ class QBasicGorillas:
     
     def plot_shot(self, player_num, angle, velocity):
         # Animate banana shot
-        # Adjust angle for player 2
         if player_num == 1:
             angle = 180 - angle
-        
+
         angle_rad = math.radians(angle)
-        
-        # Starting position
+
         start_x = self.gorilla_x[player_num] + (25 if player_num == 0 else 5)
         start_y = self.gorilla_y[player_num] + 8
-        
-        # Show throwing animation
-        throw_img = self.gorilla_images['left' if player_num == 0 else 'right']
-        
-        # Initial velocity components
+
         init_xvel = math.cos(angle_rad) * velocity
         init_yvel = math.sin(angle_rad) * velocity
-        
-        t = 0
-        x, y = start_x, start_y
-        
+
+        t = 0.0
+
+        # Bigger "world" bounds so it can leave the screen and return
+        WORLD_MARGIN_X = 50
+        WORLD_MARGIN_Y = 50
+        MAX_T = 30.0  # safety so shots don't run forever
+
+        left_shooter = False  # NEW: has banana ever left the thrower's hitbox?
+
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     return None
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     return None
-            
-            # Physics calculation
+
             x = start_x + (init_xvel * t) + (0.5 * (self.wind / 5) * t * t)
             y = start_y + ((-1 * init_yvel * t) + (0.5 * self.gravity * t * t)) * (SCREEN_HEIGHT / 350)
-            
-            # Check bounds
-            if x < -50 or x > SCREEN_WIDTH + 50 or y > SCREEN_HEIGHT + 50:
+
+            if (x < -WORLD_MARGIN_X or x > SCREEN_WIDTH + WORLD_MARGIN_X or
+                y > SCREEN_HEIGHT + WORLD_MARGIN_Y or t > MAX_T):
                 return None
-            
-            if y > 0:
-                # Check collision
-                coll_type, coll_data = self.check_collision(int(x), int(y), shooter=player_num)
-                
+
+            ix, iy = int(x), int(y)
+            on_screen = (0 <= ix < SCREEN_WIDTH and 0 <= iy < SCREEN_HEIGHT)
+
+            # NEW: once banana is outside the shooter's rectangle, allow self-hit
+            gx = self.gorilla_x[player_num]
+            gy = self.gorilla_y[player_num]
+            if not (gx <= ix <= gx + 30 and gy <= iy <= gy + 30):
+                left_shooter = True
+
+            ix, iy = int(x), int(y)
+
+            # Only collide/draw when it's actually on-screen
+            on_screen = (0 <= ix < SCREEN_WIDTH and 0 <= iy < SCREEN_HEIGHT)
+
+            if on_screen:
+                # Only ignore shooter BEFORE it has left the shooter hitbox
+                shooter_to_ignore = player_num if not left_shooter else None
+                coll_type, coll_data = self.check_collision(ix, iy, shooter=shooter_to_ignore)
+
                 if coll_type == 'sun':
                     self.sun_hit = True
+
                 elif coll_type == 'building':
-                    # Punch a transparent hole in the city bitmap so damage persists
                     if self.city_surf is not None:
-                        pygame.draw.circle(self.city_surf, (0, 0, 0, 0), (int(x), int(y)), 14)
+                        pygame.draw.circle(self.city_surf, (0, 0, 0, 0), (ix, iy), 14)
                     self.do_explosion(x, y)
                     return None
+
                 elif coll_type == 'gorilla':
-                    # Hide the gorilla so it doesn't get redrawn during the explosion
                     self.gorilla_alive[coll_data] = False
                     self.draw_scene()
                     self.explode_gorilla(coll_data)
                     return coll_data
-                
-                # Draw scene
+
+                # Draw scene + banana only when visible
                 self.draw_scene()
-                
-                # Draw player names
+
                 name_surf = self.font.render(self.player1_name, True, EGA_PALETTE[15])
                 self.screen.blit(name_surf, (5, 5))
                 name_surf = self.font.render(self.player2_name, True, EGA_PALETTE[15])
                 self.screen.blit(name_surf, (SCREEN_WIDTH - name_surf.get_width() - 5, 5))
-                
-                # Draw banana
+
                 rot = int((t * 10) % 4)
                 banana = self.banana_sprites[rot]
-                self.screen.blit(banana, (int(x), int(y)))
-                
+                self.screen.blit(banana, (ix, iy))
+
                 self.display.blit(pygame.transform.scale(self.screen, self.display.get_size()), (0, 0))
                 pygame.display.flip()
-            
+            else:
+                # Draw scene + banana only when visible
+                self.draw_scene()
+
+                name_surf = self.font.render(self.player1_name, True, EGA_PALETTE[15])
+                self.screen.blit(name_surf, (5, 5))
+                name_surf = self.font.render(self.player2_name, True, EGA_PALETTE[15])
+                self.screen.blit(name_surf, (SCREEN_WIDTH - name_surf.get_width() - 5, 5))
+
+                self.display.blit(pygame.transform.scale(self.screen, self.display.get_size()), (0, 0))
+                pygame.display.flip()
+
             t += 0.1
             self.clock.tick(FPS)
-    
+
     def explode_gorilla(self, player_num):
         # Gorilla explosion animation
         PLAY("MBO0L16EFGEFDC")
