@@ -147,7 +147,7 @@ EGA_PALETTE = [
     (0, 170, 170),     # 3 - Cyan
     (170, 0, 0),       # 4 - Red
     (170, 0, 170),     # 5 - Magenta
-    (170, 85, 0),      # 6 - Brown
+    (255, 170, 85),      # 6 - Brown
     (170, 170, 170),   # 7 - Light Gray
     (85, 85, 85),      # 8 - Dark Gray
     (85, 85, 255),     # 9 - Light Blue
@@ -278,55 +278,65 @@ class QBasicGorillas:
         surface = pygame.Surface((30, 30), pygame.SRCALPHA)
         color = EGA_PALETTE[OBJECTCOLOR]
         
-        # Head (slightly smaller)
-        pygame.draw.rect(surface, color, (10, 1, 11, 7))
-        pygame.draw.rect(surface, color, (9, 3, 13, 3))
-
-        # Brow
-        pygame.draw.line(surface, EGA_PALETTE[0], (11, 2), (19, 2), 1)
-
-        # Eyes
-        surface.set_at((12, 4), EGA_PALETTE[0])
-        surface.set_at((13, 4), EGA_PALETTE[0])
-        surface.set_at((16, 4), EGA_PALETTE[0])
-        surface.set_at((17, 4), EGA_PALETTE[0])
-
-        # Neck
-        pygame.draw.line(surface, color, (9, 8), (21, 8), 1)
+        # Adjust coordinates to match QBasic positioning (center-based)
+        cx, cy = 15, 1  # Center x and y offset
         
-        # Body
-        pygame.draw.rect(surface, color, (6, 9, 19, 8))
-        pygame.draw.rect(surface, color, (8, 17, 14, 6))
+        # Head
+        pygame.draw.rect(surface, color, (cx - 4, cy, 7, 7))  # Main head
+        pygame.draw.rect(surface, color, (cx - 5, cy + 2, 9, 3))  # Wider part
+        
+        # Eyes/Brow line
+        pygame.draw.line(surface, EGA_PALETTE[0], (cx - 3, cy + 2), (cx + 2, cy + 2), 1)
+        
+        # Eyes (nose in EGA mode)
+        surface.set_at((cx - 2, cy + 4), EGA_PALETTE[0])
+        surface.set_at((cx - 1, cy + 4), EGA_PALETTE[0])
+        surface.set_at((cx + 1, cy + 4), EGA_PALETTE[0])
+        surface.set_at((cx + 2, cy + 4), EGA_PALETTE[0])
+        
+        # Neck
+        pygame.draw.line(surface, color, (cx - 3, cy + 7), (cx + 2, cy + 7), 1)
+        
+        # Body (upper)
+        pygame.draw.rect(surface, color, (cx - 8, cy + 8, 15, 7))
+        # Body (lower)
+        pygame.draw.rect(surface, color, (cx - 6, cy + 15, 11, 6))
         
         # Legs
         for i in range(5):
             pygame.draw.arc(surface, color, (7 + i, 18, 20, 20), 
                           3 * math.pi / 4, 9 * math.pi / 8, 1)
-            pygame.draw.arc(surface, color, (i, 18, 20, 20),
+            pygame.draw.arc(surface, color, (i-2, 18, 20, 20),
                           15 * math.pi / 8, math.pi / 4, 1)
         
         # Chest circles
-        pygame.draw.arc(surface, (0, 0, 0), (5, 7, 10, 10),
+        pygame.draw.arc(surface, EGA_PALETTE[0], (cx - 10, cy + 5, 10, 10),
                        3 * math.pi / 2, 2 * math.pi, 1)
-        pygame.draw.arc(surface, (0, 0, 0), (15, 7, 10, 10),
+        pygame.draw.arc(surface, EGA_PALETTE[0], (cx, cy + 5, 10, 10),
                        math.pi, 3 * math.pi / 2, 1)
         
-        # Arms
-        for i in range(5):
+        # Arms (5 iterations for thickness)
+        for i in range(-5, 0):
             if arms_up == 1:  # Right arm up
-                pygame.draw.arc(surface, color, (2 + i, 6, 18, 18),
+                # Left arm down
+                pygame.draw.arc(surface, color, (cx + i - 9, cy + 7, 18, 18),
                               3 * math.pi / 4, 5 * math.pi / 4, 1)
-                pygame.draw.arc(surface, color, (7 + i, -1, 18, 18),
+                # Right arm up
+                pygame.draw.arc(surface, color, (cx + 5 + i - 9, cy - 4, 18, 18),
                               7 * math.pi / 4, math.pi / 4, 1)
             elif arms_up == 2:  # Left arm up
-                pygame.draw.arc(surface, color, (2 + i, -1, 18, 18),
+                # Left arm up
+                pygame.draw.arc(surface, color, (cx + i - 9, cy - 4, 18, 18),
                               3 * math.pi / 4, 5 * math.pi / 4, 1)
-                pygame.draw.arc(surface, color, (7 + i, 6, 18, 18),
+                # Right arm down
+                pygame.draw.arc(surface, color, (cx + 5 + i - 9, cy + 7, 18, 18),
                               7 * math.pi / 4, math.pi / 4, 1)
-            else:  # Both arms down
-                pygame.draw.arc(surface, color, (2 + i, 6, 18, 18),
+            else:  # Both arms down (arms_up == 0 or 3)
+                # Left arm down
+                pygame.draw.arc(surface, color, (cx + i - 9, cy + 7, 18, 18),
                               3 * math.pi / 4, 5 * math.pi / 4, 1)
-                pygame.draw.arc(surface, color, (7 + i, 6, 18, 18),
+                # Right arm down
+                pygame.draw.arc(surface, color, (cx + 5 + i - 9, cy + 7, 18, 18),
                               7 * math.pi / 4, math.pi / 4, 1)
      
         return surface
